@@ -1,0 +1,38 @@
+# Build output
+.build/
+.swiftpm/
+DerivedData/
+*.o
+*.dSYM/
+
+# The assembled app bundle produced by build.sh
+MenuStats.app/
+*.app/
+
+# Distribution archives
+*.zip
+
+# Xcode, if you ever open the package in it
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Claude Code local state (CLAUDE.md itself is committed)
+.claude/settings.local.json
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
