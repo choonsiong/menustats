@@ -26,6 +26,12 @@ defaults delete com.local.menustats   # reset all preferences
 
 After `--install`, the previous instance is killed and the app relaunches, so this is the normal edit-test loop.
 
+## Branches and releases
+
+`main` is protected by a GitHub ruleset: no direct pushes, no force pushes, no deletion. Every change goes on a `feat/`, `fix/`, `enhance/`, `docs/`, or `chore/` branch and lands through a pull request.
+
+After a merge, tag `main` with the next version and push the tag (`git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`): a minor bump if a `feat/` branch merged, a patch bump otherwise. `.github/workflows/release.yml` at the repository root then publishes the "vX.Y.Z release" GitHub release with generated notes, and fails on a tag that isn't on `main`. Nothing is built or attached, so a release is not a deploy.
+
 ## Hard constraint: this only builds on macOS
 
 Every monitor calls a Darwin, Mach, or IOKit API. The package will not compile on Linux and there is nothing to stub out. If you are running in a container without a Swift toolchain and macOS SDK:
