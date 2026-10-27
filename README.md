@@ -45,3 +45,7 @@ MenuStats starts as a single icon on the right side of the menu bar. Click it fo
 
 - [MenuStats/README.md](MenuStats/README.md): how each metric is measured, every setting, and known caveats
 - [MenuStats/CLAUDE.md](MenuStats/CLAUDE.md): architecture, conventions, and platform API notes for working on the code
+
+## License
+
+MIT. See [LICENSE](LICENSE).
