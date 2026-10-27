@@ -58,7 +58,7 @@ Timer (RunLoop .common, interval from Settings)
 | Path | Responsibility |
 |---|---|
 | `Sources/MenuStats/main.swift` | Entry point. Sets `.accessory` activation policy, installs the delegate, runs the app. Top-level code, so no `@main`. |
-| `Sources/MenuStats/AppDelegate.swift` | Everything UI: status item, menu construction, refresh loop, actions. The only large file (~615 lines). |
+| `Sources/MenuStats/AppDelegate.swift` | Everything UI: status item, menu construction, refresh loop, actions. The only large file (~665 lines). |
 | `Sources/MenuStats/Settings.swift` | Thin `UserDefaults` wrapper. Every preference has a registered default. |
 | `Sources/MenuStats/Support.swift` | `Sysctl` helpers and the `Fmt` formatters. |
 | `Sources/MenuStats/Monitors/CPUMonitor.swift` | `host_processor_info` tick deltas, per-core and aggregate. |
@@ -100,6 +100,8 @@ Timer (RunLoop .common, interval from Settings)
 **Temperature runs on a background queue** guarded by `temperatureBusy`, because the HID sensor sweep can take tens of milliseconds. The result lands in `self.temperature` on the main thread. `TemperatureMonitor.read()` is blocking — never call it from the main thread.
 
 **The status icon is a template image.** That is what makes it tint correctly in light mode, dark mode, and while the menu is highlighted. If you replace the icon, keep `isTemplate = true` and draw in black.
+
+**The menu bar text has a constant width.** `statusTitle(_:)` puts each segment on tab stops: a left stop where the label starts and a right stop where the value ends, sized from the widest value the segment can show (`Fmt.percent(100)`, `Fmt.widestShortRates`, a 3-digit temperature). Readings can then change without resizing the item and pushing neighbouring menu bar items around. Only toggling segments or units changes the width. The label needs its own stop because a right stop aligns everything up to the next tab. This relies on `Fmt` never printing more than three digits (`1.0K`, not `1023B` or `100.0K`), so keep that guarantee if you touch `Fmt.scale`.
 
 **The status item never renders empty.** If every text segment is switched off, `updateStatusBar` falls back to the icon; otherwise the item would collapse to zero width and become unclickable.
 

@@ -137,25 +137,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateStatusBar(cpu: CPUUsage, memory: MemoryUsage, network: NetworkUsage) {
         guard let button = statusItem.button else { return }
 
-        var segments: [String] = []
+        var columns: [StatusColumn] = []
         if !settings.iconOnly {
             if settings.showCPU {
-                segments.append("CPU " + Fmt.percent(cpu.total))
+                columns.append(StatusColumn(label: "CPU ", value: Fmt.percent(cpu.total),
+                                            widest: [Fmt.percent(100)]))
             }
             if settings.showMemory {
-                segments.append("MEM " + Fmt.percent(memory.percent))
+                columns.append(StatusColumn(label: "MEM ", value: Fmt.percent(memory.percent),
+                                            widest: [Fmt.percent(100)]))
             }
             if settings.showNetwork {
-                let down = Fmt.rate(network.download, bits: settings.bits, short: true)
-                let up = Fmt.rate(network.upload, bits: settings.bits, short: true)
-                segments.append("↓\(down) ↑\(up)")
+                let widest = Fmt.widestShortRates(bits: settings.bits)
+                columns.append(StatusColumn(label: "↓",
+                                            value: Fmt.rate(network.download, bits: settings.bits, short: true),
+                                            widest: widest))
+                columns.append(StatusColumn(label: "↑",
+                                            value: Fmt.rate(network.upload, bits: settings.bits, short: true),
+                                            widest: widest,
+                                            gap: " "))
             }
             if settings.showTemperature, let value = temperature.primary {
-                segments.append(Fmt.temperature(value, fahrenheit: settings.fahrenheit))
+                columns.append(StatusColumn(label: "",
+                                            value: Fmt.temperature(value, fahrenheit: settings.fahrenheit),
+                                            widest: [Fmt.temperature(100, fahrenheit: settings.fahrenheit)]))
             }
         }
 
-        if segments.isEmpty {
+        if columns.isEmpty {
             // Icon only. Also the fallback if every text segment is switched off,
             // so the item never collapses to zero width and become unclickable.
             button.attributedTitle = NSAttributedString(string: "")
@@ -164,12 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             button.image = nil
             button.imagePosition = .noImage
-            button.attributedTitle = NSAttributedString(
-                string: segments.joined(separator: "  "),
-                attributes: [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular),
-                    .foregroundColor: NSColor.labelColor
-                ])
+            button.attributedTitle = statusTitle(columns)
         }
 
         var lines = [
@@ -182,6 +186,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lines.append("Temperature  \(Fmt.temperature(value, fahrenheit: settings.fahrenheit))")
         }
         button.toolTip = lines.joined(separator: "\n")
+    }
+
+    /// One slot of the menu bar text: a label, then a value right-aligned
+    /// within the width of the widest value the slot can ever show.
+    private struct StatusColumn {
+        var label: String
+        var value: String
+        var widest: [String]
+        var gap = "  "
+    }
+
+    /// Lays the columns out on tab stops, a left stop where each label starts
+    /// and a right stop where each value ends. The stops depend only on the
+    /// widest possible values, so the title keeps the same width as readings
+    /// change and the status item doesn't shove its neighbours around.
+    private func statusTitle(_ columns: [StatusColumn]) -> NSAttributedString {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular)
+        func width(_ string: String) -> CGFloat {
+            (string as NSString).size(withAttributes: [.font: font]).width
+        }
+
+        var text = ""
+        var stops: [NSTextTab] = []
+        var x: CGFloat = 0
+        for (index, column) in columns.enumerated() {
+            // A right stop aligns everything up to the next tab, so each label
+            // needs a stop of its own or it gets dragged along with the value.
+            if index > 0 {
+                x = ceil(x + width(column.gap))
+                stops.append(NSTextTab(textAlignment: .left, location: x))
+                text += "\t"
+            }
+            // Counting the live value means an out-of-range reading widens its
+            // slot rather than overflowing into the next one.
+            let widest = (column.widest + [column.value]).map(width).max() ?? 0
+            x = ceil(x + width(column.label) + widest)
+            stops.append(NSTextTab(textAlignment: .right, location: x))
+            text += column.label + "\t" + column.value
+        }
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.tabStops = stops
+        return NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph
+        ])
     }
 
     /// Template image so macOS tints it correctly in light, dark, and while

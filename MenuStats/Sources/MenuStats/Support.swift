@@ -30,11 +30,14 @@ enum Fmt {
     private static func scale(_ value: Double, units: [String], divisor: Double, suffix: String = "") -> String {
         var v = max(0, value)
         var index = 0
-        while v >= divisor && index < units.count - 1 {
+        // Thresholds are the rounding boundaries, not the divisor, so the
+        // number never prints as "1023" or "100.0". The menu bar sizes its
+        // slots on that three-digit guarantee.
+        while v >= min(divisor, 999.5) && index < units.count - 1 {
             v /= divisor
             index += 1
         }
-        let decimals = (index == 0 || v >= 100) ? 0 : 1
+        let decimals = (index == 0 || v >= 99.95) ? 0 : 1
         return String(format: "%.\(decimals)f%@%@%@", v, units[index].isEmpty ? "" : " ", units[index], suffix)
     }
 
@@ -54,6 +57,13 @@ enum Fmt {
         return short
             ? scale(bytesPerSecond, units: byteUnitsShort, divisor: 1024).replacingOccurrences(of: " ", with: "")
             : scale(bytesPerSecond, units: byteUnits, divisor: 1024, suffix: "/s")
+    }
+
+    /// The widest strings the compact rate can produce. With tabular digits
+    /// every number of the same shape is the same width, so measuring these
+    /// is enough to size a slot that never has to grow.
+    static func widestShortRates(bits: Bool) -> [String] {
+        (bits ? bitUnitsShort : byteUnitsShort).flatMap { ["999" + $0, "99.9" + $0] }
     }
 
     static func percent(_ value: Double, decimals: Int = 0) -> String {
