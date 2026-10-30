@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let memoryMonitor = MemoryMonitor()
     private let networkMonitor = NetworkMonitor()
     private let temperatureMonitor = TemperatureMonitor()
+    private let publicIPMonitor = PublicIPMonitor()
     private let backgroundQueue = DispatchQueue(label: "app.menustats.sensors", qos: .utility)
 
     // MARK: State
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var menuIsOpen = false
     private var temperatureBusy = false
     private var temperature = TemperatureReading()
+    private var publicIP = "Checking…"
     private var lastCPU = CPUUsage()
     private var lastMemory = MemoryUsage()
     private var lastNetwork = NetworkUsage()
@@ -42,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let networkGraphItem = NSMenuItem()
     private let networkRateItem = NSMenuItem()
     private let networkSessionItem = NSMenuItem()
+    private let publicIPItem = NSMenuItem()
     private var interfaceItems: [NSMenuItem] = []
 
     private let temperatureHeaderItem = NSMenuItem()
@@ -51,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let fanItem = NSMenuItem()
     private let temperatureSeparator = NSMenuItem.separator()
 
+    private let publicIPSettingItem = NSMenuItem()
     private let launchAtLoginItem = NSMenuItem()
     private var intervalItems: [NSMenuItem] = []
     private var modeItems: [NSMenuItem] = []
@@ -129,6 +133,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.temperature = reading
                 self.temperatureBusy = false
             }
+        }
+    }
+
+    private func refreshPublicIP() {
+        guard settings.showPublicIP else { return }
+        publicIPMonitor.read { [weak self] address in
+            guard let self = self else { return }
+            self.publicIP = address ?? "Unavailable"
+            self.redraw()
         }
     }
 
@@ -318,6 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(networkGraphItem)
         menu.addItem(networkRateItem)
         menu.addItem(networkSessionItem)
+        menu.addItem(publicIPItem)
         interfaceItems = (0..<3).map { _ in makeInfoItem() }
         interfaceItems.forEach { menu.addItem($0) }
         menu.addItem(temperatureSeparator)
@@ -344,7 +358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         [cpuSummaryItem, cpuBreakdownItem, loadItem,
          memorySummaryItem, memoryBreakdownItem, swapItem,
-         networkRateItem, networkSessionItem,
+         networkRateItem, networkSessionItem, publicIPItem,
          temperatureSummaryItem, fanItem, systemItem].forEach { $0.isEnabled = false }
     }
 
@@ -403,6 +417,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         submenu.addItem(.separator())
+        publicIPSettingItem.title = "Show Public IP"
+        publicIPSettingItem.toolTip = "Asks checkip.amazonaws.com when the menu opens"
+        publicIPSettingItem.action = #selector(togglePublicIP(_:))
+        publicIPSettingItem.target = self
+        publicIPSettingItem.isEnabled = true
+        submenu.addItem(publicIPSettingItem)
+
         launchAtLoginItem.title = "Launch at Login"
         launchAtLoginItem.action = #selector(toggleLaunchAtLogin(_:))
         launchAtLoginItem.target = self
@@ -456,6 +477,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         configure(networkSessionItem,
                   label: "Since launch",
                   value: "↓ \(Fmt.bytes(Double(network.sessionIn)))   ↑ \(Fmt.bytes(Double(network.sessionOut)))")
+        publicIPItem.isHidden = !settings.showPublicIP
+        configure(publicIPItem, label: "Public IP", value: publicIP)
 
         for (index, item) in interfaceItems.enumerated() {
             if index < network.interfaces.count {
@@ -523,6 +546,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for item in unitItems {
             item.state = (item.tag == 1 ? settings.bits : settings.fahrenheit) ? .on : .off
         }
+        publicIPSettingItem.state = settings.showPublicIP ? .on : .off
         if #available(macOS 13.0, *) {
             launchAtLoginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         }
@@ -567,6 +591,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuIsOpen = true
         refreshProcesses()
         refreshTemperature()
+        refreshPublicIP()
         updateMenu(cpu: lastCPU, memory: lastMemory, network: lastNetwork)
     }
 
@@ -603,6 +628,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleUnit(_ sender: NSMenuItem) {
         if sender.tag == 1 { settings.bits.toggle() } else { settings.fahrenheit.toggle() }
+        updateSettingsState()
+        redraw()
+    }
+
+    @objc private func togglePublicIP(_ sender: NSMenuItem) {
+        settings.showPublicIP.toggle()
         updateSettingsState()
         redraw()
     }

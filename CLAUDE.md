@@ -60,13 +60,13 @@ Timer (RunLoop .common, interval from Settings)
        └─ updateMenu(...)        → only when the menu is open
 ```
 
-`ProcessMonitor` is not on this path. It shells out to `/bin/ps` on a background queue, and only when the menu opens.
+`ProcessMonitor` and `PublicIPMonitor` are not on this path. They run only when the menu opens: the first shells out to `/bin/ps` on a background queue, the second makes a network request.
 
 `Sources/MenuStats/AppDelegate.swift` is everything UI (status item, menu construction, refresh loop, actions) and the only large file. `main.swift` is top-level code, so there is no `@main`. `Support.swift` holds the `Sysctl` helpers and the `Fmt` formatters. `TemperatureMonitor` uses HID sensors on Apple Silicon and the SMC on Intel, and reads fan RPM from the SMC on both.
 
 ## Conventions
 
-**Monitors are independent and uniform.** CPU, memory, and network each expose a `read()` returning a plain value struct, marked `@discardableResult`, and own their history capped at 60 samples. `TemperatureMonitor` keeps no history, and `ProcessMonitor` is a stateless enum of static functions. A monitor never touches UI and never reads `Settings`. Unit conversion and display formatting happen in the view layer.
+**Monitors are independent and uniform.** CPU, memory, and network each expose a `read()` returning a plain value struct, marked `@discardableResult`, and own their history capped at 60 samples. `TemperatureMonitor` keeps no history, `ProcessMonitor` is a stateless enum of static functions, and `PublicIPMonitor` calls back asynchronously. A monitor never touches UI and never reads `Settings`. Unit conversion and display formatting happen in the view layer.
 
 **All formatting goes through `Fmt`.** Never inline a `String(format:)` for bytes, rates, percentages, or temperature in `AppDelegate`. The one deliberate exception is per-process CPU, which can exceed 100% across cores and so must not use `Fmt.percent` (it clamps).
 
@@ -91,6 +91,8 @@ Timer (RunLoop .common, interval from Settings)
 **Counters are primed in `applicationDidFinishLaunching`.** CPU and network both need a baseline; the first `read()` after launch is discarded by design.
 
 **Temperature runs on a background queue** guarded by `temperatureBusy`, because the HID sensor sweep can take tens of milliseconds. The result lands in `self.temperature` on the main thread. `TemperatureMonitor.read()` is blocking — never call it from the main thread.
+
+**Public IP is the app's only network request, and it is opt-in.** The address can't be read locally, so `PublicIPMonitor` asks `checkip.amazonaws.com`. Keep it off by default, called only from `menuWillOpen`, limited to once a minute, and out of `refresh()`, so that a default install contacts nothing and turning it on doesn't mean a request every two seconds. It uses `URLSession`'s async API rather than `backgroundQueue`, which is serial and shared with temperature and `ps`: a slow lookup there would stall both. The reply is outside input, so `inet_pton` validates it before it reaches the menu.
 
 **The status icon is a template image.** That is what makes it tint correctly in light mode, dark mode, and while the menu is highlighted. If you replace the icon, keep `isTemplate = true` and draw in black.
 
@@ -129,6 +131,7 @@ Run through this after any change to sampling or the status item:
 - Numbers agree with Activity Monitor for CPU total and memory used.
 - Network rates move when you start a download and return to near zero when idle.
 - Graphs keep updating while the menu is held open.
+- With Show Public IP on, the row fills in when the menu opens and reads "Unavailable" offline. With it off, the row is hidden.
 - Temperature section appears on Apple Silicon and Intel, and hides itself entirely on hardware with no readable sensors rather than showing zeros.
 - Switching between icon and text mode takes effect immediately and survives a relaunch.
 - Changing the interval restarts the timer without leaving the old one running.
