@@ -17,12 +17,11 @@ struct NetworkUsage {
 }
 
 /// Reads per-interface byte counters and converts them to a rate.
-/// Counters are 32-bit and wrap, so deltas use wrapping subtraction.
 final class NetworkMonitor {
 
     private struct Counters {
-        var input: UInt32
-        var output: UInt32
+        var input: UInt64
+        var output: UInt64
     }
 
     // Virtual / link-local interfaces that would double count real traffic.
@@ -41,6 +40,18 @@ final class NetworkMonitor {
 
     private func isExcluded(_ name: String) -> Bool {
         excluded.contains { name.hasPrefix($0) }
+    }
+
+    /// `ifmib` is the one source that gives an unentitled process true counts.
+    /// `getifaddrs` and `NET_RT_IFLIST2` both round them and cut them to
+    /// 32 bits, even in the 64-bit fields of `if_data64`.
+    private func byteCounters(for name: String) -> Counters? {
+        var mib: [Int32] = [CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA,
+                            Int32(if_nametoindex(name)), IFDATA_GENERAL]
+        var data = ifmibdata()
+        var size = MemoryLayout<ifmibdata>.size
+        guard sysctl(&mib, UInt32(mib.count), &data, &size, nil, 0) == 0 else { return nil }
+        return Counters(input: data.ifmd_data.ifi_ibytes, output: data.ifmd_data.ifi_obytes)
     }
 
     @discardableResult
@@ -65,10 +76,8 @@ final class NetworkMonitor {
             if let address = entry.ifa_addr {
                 let family = address.pointee.sa_family
 
-                if family == UInt8(AF_LINK), running, !isExcluded(name), let raw = entry.ifa_data {
-                    let data = raw.assumingMemoryBound(to: if_data.self)
-                    current[name] = Counters(input: UInt32(truncatingIfNeeded: data.pointee.ifi_ibytes),
-                                             output: UInt32(truncatingIfNeeded: data.pointee.ifi_obytes))
+                if family == UInt8(AF_LINK), running, !isExcluded(name), let counters = byteCounters(for: name) {
+                    current[name] = counters
                     order.append(name)
                 } else if family == UInt8(AF_INET), addresses[name] == nil {
                     var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
@@ -93,19 +102,18 @@ final class NetworkMonitor {
             guard let counters = current[name] else { continue }
             guard let old = previous[name] else { continue }
 
-            // Wrapping subtraction stays correct across the 4 GB counter roll.
-            let inDelta = Double(counters.input &- old.input)
-            let outDelta = Double(counters.output &- old.output)
+            // A 64-bit counter never wraps, so going backwards means the
+            // interface reset it. What moved that interval is unknowable.
+            let inDelta = counters.input >= old.input ? counters.input - old.input : 0
+            let outDelta = counters.output >= old.output ? counters.output - old.output : 0
 
-            // Guard against interface resets producing absurd spikes.
-            let limit = 8_000_000_000.0
-            let down = inDelta < limit ? inDelta / elapsed : 0
-            let up = outDelta < limit ? outDelta / elapsed : 0
+            let down = Double(inDelta) / elapsed
+            let up = Double(outDelta) / elapsed
 
             totalDown += down
             totalUp += up
-            sessionIn += UInt64(max(0, min(inDelta, limit)))
-            sessionOut += UInt64(max(0, min(outDelta, limit)))
+            sessionIn += inDelta
+            sessionOut += outDelta
 
             var info = InterfaceInfo(name: name)
             info.ipv4 = addresses[name]
