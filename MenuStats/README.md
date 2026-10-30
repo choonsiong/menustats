@@ -45,7 +45,7 @@ To stop it: click the menu bar item → Settings is at the bottom, Quit below it
 
 Fan RPM is read from the SMC on both. If nothing is available, the temperature section hides itself and the menu bar just omits that segment — no crash, no placeholder.
 
-**Network** — per-interface byte counters from `getifaddrs`, converted to a rate using the actual elapsed time between samples. Loopback, VPN tunnels, AWDL, and bridge interfaces are excluded so traffic isn't double counted. Counters are 32-bit and wrap at 4 GB; deltas use wrapping subtraction so the roll is handled correctly.
+**Network** — per-interface 64-bit byte counters from `net.link.generic.ifdata` (`ifmib`), converted to a rate using the actual elapsed time between samples. Loopback, VPN tunnels, AWDL, and bridge interfaces are excluded so traffic isn't double counted. A counter that moves backwards means the interface reset it, so that sample counts as zero rather than as a spike.
 
 ## Settings
 
