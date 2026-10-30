@@ -12,6 +12,7 @@ final class Settings {
         static let fahrenheit = "useFahrenheit"
         static let bits = "networkInBits"
         static let iconOnly = "iconOnly"
+        static let showPublicIP = "showPublicIP"
     }
 
     init() {
@@ -23,7 +24,8 @@ final class Settings {
             Key.showNetwork: true,
             Key.showTemperature: true,
             Key.fahrenheit: false,
-            Key.bits: false
+            Key.bits: false,
+            Key.showPublicIP: false
         ])
     }
 
@@ -69,5 +71,11 @@ final class Settings {
     var bits: Bool {
         get { defaults.bool(forKey: Key.bits) }
         set { defaults.set(newValue, forKey: Key.bits) }
+    }
+
+    /// Off by default: turning it on makes the app contact an outside service.
+    var showPublicIP: Bool {
+        get { defaults.bool(forKey: Key.showPublicIP) }
+        set { defaults.set(newValue, forKey: Key.showPublicIP) }
     }
 }

@@ -10,7 +10,7 @@ CPU 14%  MEM 62%  ↓1.4M ↑210K  58°C
 
 - **CPU**: total and user/system/idle split, load averages, top processes
 - **Memory**: used memory (as Activity Monitor defines it), app/wired/compressed breakdown, swap, and memory pressure
-- **Network**: download and upload rates, totals since launch, and per-interface detail
+- **Network**: download and upload rates, totals since launch, per-interface detail, and optionally your public IP
 - **Temperature**: CPU and GPU readings, every sensor the machine exposes (HID on Apple Silicon, SMC on Intel), and fan speeds
 - History graphs for CPU, memory, and network inside the menu
 - Icon-only or inline-text menu bar display. In text mode the item keeps a fixed width, so changing numbers don't push neighbouring menu bar items around

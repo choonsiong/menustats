@@ -56,6 +56,7 @@ In the menu, under Settings:
 - Update interval: 1, 2, 5, or 10 seconds
 - Network in bytes or bits (Mbps)
 - Celsius or Fahrenheit
+- Show Public IP (off by default, see below)
 - Launch at Login (macOS 13+, uses `SMAppService`)
 
 Everything persists in `UserDefaults` under the `com.local.menustats` domain.
@@ -67,6 +68,8 @@ Everything persists in `UserDefaults` under the `com.local.menustats` domain.
 **Gatekeeper.** The build script signs ad-hoc, which is enough to run locally. If macOS complains, right-click the app → Open, or run `xattr -dr com.apple.quarantine MenuStats.app`.
 
 **Top processes** shell out to `/bin/ps`, and only while the menu is open. Background sampling never spawns a process.
+
+**Public IP** is the only thing that uses the network, and it is off by default. A Mac can't read its public address locally, so with Settings → **Show Public IP** on, opening the menu asks `checkip.amazonaws.com`, at most once a minute. That service sees your IP address, as any website you visit does. The address can lag a network change, such as connecting a VPN, by up to a minute.
 
 **Cost.** At the 2-second default the app sits well under 1% CPU. Sensor reads happen on a background queue so the menu bar never stutters.
 
@@ -88,6 +91,7 @@ Sources/MenuStats/
     TemperatureMonitor.swift    HID sensors + SMC dispatch
     SMC.swift                   read-only SMC client
     ProcessMonitor.swift
+    PublicIPMonitor.swift       the one network request
   Views/
     SparklineView.swift         history graphs in the menu
 ```
